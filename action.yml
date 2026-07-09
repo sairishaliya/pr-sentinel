@@ -25,7 +25,7 @@ outputs:
   comment_url:
     description: URL of the PR comment created or updated by PR-Sentinel.
 runs:
-  using: node20
+  using: node24
   main: dist/index.js
 branding:
   icon: shield
