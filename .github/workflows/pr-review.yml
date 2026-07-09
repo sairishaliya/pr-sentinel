@@ -15,11 +15,12 @@ jobs:
       issues: write
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Run PR-Sentinel
-        uses: your-org/pr-sentinel@v1
+        uses: ./
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          llm_provider: gemini
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          model: gemini-2.5-flash
+          llm_provider: mock
           max_diff_lines: "5000"
