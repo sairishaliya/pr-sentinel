@@ -1,43 +1,72 @@
 # PR-Sentinel
 
-Reusable GitHub Action that performs first-pass pull request review with Gemini or an offline mock reviewer and posts a structured Markdown comment back to the PR.
+PR-Sentinel is a reusable GitHub Action that reviews pull requests and posts a first-pass review comment with possible bugs, security issues, readability feedback, and a short verdict.
 
-## Problem
+I built this project to solve a common review problem: small but important issues often get noticed late because human reviewers have to spend time scanning the basic diff first. PR-Sentinel does that first pass automatically, so the reviewer can focus on design, logic, and final approval.
 
-Human reviewers should not spend their first pass looking for obvious mistakes. PR-Sentinel catches likely bugs, security risks, and readability issues early, then leaves a compact review comment for the author and reviewer to use as a starting point.
+## What It Does
 
-## Verification On A Restricted Laptop
+When a pull request is opened or updated, PR-Sentinel:
 
-The project includes an offline verification mode. It does not need GitHub access, an API key, or outbound network calls.
+1. Reads the pull request details from GitHub.
+2. Fetches the changed files and patch data using Octokit.
+3. Builds a review prompt from the diff.
+4. Sends the diff to a review provider.
+5. Converts the response into a clean Markdown comment.
+6. Posts or updates one PR comment instead of spamming the conversation.
+
+The comment includes:
+
+- Summary verdict: `Approve`, `Needs changes`, or `Comment`.
+- Potential bugs.
+- Security issues.
+- Code style and readability issues.
+- A clear fallback message if the review could not run.
+
+## Why This Is Safe To Verify
+
+The project has a `mock` provider that works without any external AI API, GitHub secret, or network call to an LLM. This is useful on restricted office laptops because the full action flow can be tested locally without touching any other person's repository.
+
+For real GitHub verification, I only run it inside repos I own. I do not use random public repositories for testing because that can create unwanted notifications and comments for other maintainers.
+
+## Local Verification
+
+Run this from the project folder:
 
 ```bash
 npm install
 npm run verify
 ```
 
-The verification command checks:
+This checks three important paths:
 
-- Normal PR review flow using the offline `mock` provider.
-- Large diff skip flow for diffs over `5000` lines.
-- Gemini API failure fallback flow.
+- Normal review flow using the offline `mock` provider.
+- Large diff skip flow when the PR is over `5000` diff lines.
+- Gemini failure fallback flow, so API errors do not fail silently.
 
-It also writes sample comments to `verification-output/`:
+The command also writes sample output files into `verification-output/`:
 
 - `success-review.md`
 - `skip-large-diff.md`
 - `gemini-failure-fallback.md`
 - `summary.json`
 
-These files are useful for demos, screenshots, and CV discussions because they show exactly what the action would post on a PR.
+These files show exactly what PR-Sentinel would post as a pull request comment.
 
-## Live Setup With Gemini
+## Real GitHub Verification
 
-Gemini is the recommended live provider because Google offers a Gemini Developer API free tier for supported models. OpenAI's public API pricing is token-based, so this project uses Gemini as the lower-friction live option.
+This repository includes a self-test workflow at `.github/workflows/pr-review.yml`. It runs PR-Sentinel on pull requests in this repo using the `mock` provider.
 
-1. Push this action repository to GitHub.
-2. Commit the generated `dist/` folder because `action.yml` runs `dist/index.js`.
-3. Add a repository or organization secret named `GEMINI_API_KEY`.
-4. Add this workflow to the target repository:
+That means the real GitHub Action can be verified without a Gemini key. A successful run should:
+
+- Trigger on a pull request.
+- Fetch the PR diff.
+- Run the local action from `./`.
+- Post a PR comment from `github-actions[bot]`.
+
+## Using It In Another Repo
+
+Add this workflow to a repository you own:
 
 ```yaml
 name: PR Review
@@ -51,50 +80,80 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
       issues: write
 
     steps:
       - name: Run PR-Sentinel
-        uses: your-org/pr-sentinel@v1
+        uses: sairishaliya/pr-sentinel@v1.0.1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          llm_provider: gemini
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          model: gemini-2.5-flash
+          llm_provider: mock
+          model: mock-reviewer-v1
           max_diff_lines: "5000"
 ```
+
+The `mock` provider is best for first testing because it does not need secrets.
+
+## Live AI Review With Gemini
+
+For live AI review, create a GitHub secret named `GEMINI_API_KEY`, then use:
+
+```yaml
+with:
+  github_token: ${{ secrets.GITHUB_TOKEN }}
+  llm_provider: gemini
+  gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+  model: gemini-2.5-flash
+  max_diff_lines: "5000"
+```
+
+Gemini is used because it is easier to try with a free-tier developer API. The action is structured so another provider can be added later without changing the GitHub logic.
 
 ## Inputs
 
 | Name | Required | Default | Description |
 | --- | --- | --- | --- |
-| `github_token` | Yes | None | Token used to fetch PR data and write the PR comment. |
-| `llm_provider` | No | `gemini` | Provider used for review. Supported values: `gemini`, `mock`. |
-| `gemini_api_key` | For Gemini | None | Gemini API key read from `GEMINI_API_KEY`. Not needed for `mock`. |
-| `model` | No | `gemini-2.5-flash` | Model used for live Gemini review. |
-| `max_diff_lines` | No | `5000` | Skip review gracefully when the diff is larger than this threshold. |
+| `github_token` | Yes | None | Token used to read the PR and post comments. |
+| `llm_provider` | No | `gemini` | Review provider. Supported values: `gemini`, `mock`. |
+| `gemini_api_key` | For Gemini | None | Gemini API key. Not needed for `mock`. |
+| `model` | No | `gemini-2.5-flash` | Model name for live Gemini review. |
+| `max_diff_lines` | No | `5000` | Skips review when the diff is too large. |
 
 ## Architecture
 
-PR opened or updated -> GitHub Action triggers -> Octokit fetches PR files and patches -> PR-Sentinel builds a structured review prompt -> Gemini or the offline mock reviewer analyzes the diff -> response is normalized into review categories -> Octokit posts or updates one PR comment.
+```text
+PR opened or updated
+-> GitHub Action starts
+-> Octokit fetches PR files
+-> PR-Sentinel builds a diff prompt
+-> mock or Gemini provider generates structured review data
+-> PR-Sentinel formats Markdown
+-> Octokit posts or updates the PR comment
+```
 
-## Review Output
+The code is split by responsibility:
 
-Each PR comment includes:
-
-- Summary verdict: `Approve`, `Needs changes`, or `Comment`.
-- Potential bugs.
-- Security issues.
-- Code style and readability issues.
-- A note when review was skipped or unavailable.
+- `src/index.ts`: action entrypoint and workflow control.
+- `src/github.ts`: GitHub API calls.
+- `src/llm.ts`: provider selection, Gemini review, and mock review.
+- `src/promptTemplate.ts`: review prompt template.
+- `src/verify.ts`: local verification harness.
 
 ## Error Handling
 
-- If the diff is larger than `max_diff_lines`, PR-Sentinel posts a clear skip comment.
-- If Gemini fails because of rate limits, network restrictions, or API errors, PR-Sentinel logs the reason and posts a fallback comment.
-- If the GitHub token is missing or comment creation fails, the action fails loudly so maintainers can fix the workflow configuration.
+PR-Sentinel is designed to fail clearly:
 
-## Screenshot / GIF
+- If the diff is too large, it posts a skip comment.
+- If Gemini fails because of rate limits or network issues, it posts a fallback comment.
+- If GitHub permissions are missing, the workflow fails loudly so the permission issue is visible.
 
-_Add a screenshot or GIF of PR-Sentinel reviewing a real pull request here._
+## Current Limitations
+
+- The mock provider is deterministic and only catches simple patterns. It is for verification, not a replacement for a real LLM.
+- The live provider currently supports Gemini only.
+- The action posts a PR-level comment, not inline review comments.
+
+## Screenshot
+
+Add a screenshot of PR-Sentinel commenting on a real pull request here.
