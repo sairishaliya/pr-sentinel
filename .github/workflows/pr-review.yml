@@ -1,0 +1,25 @@
+name: PR Review
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+
+jobs:
+  pr-sentinel:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+
+    steps:
+      - name: Run PR-Sentinel
+        uses: your-org/pr-sentinel@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          llm_provider: gemini
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          model: gemini-2.5-flash
+          max_diff_lines: "5000"

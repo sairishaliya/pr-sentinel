@@ -1,0 +1,32 @@
+name: PR-Sentinel
+description: Automatically review pull requests with Gemini or an offline mock reviewer and post a structured Markdown summary back to the PR.
+inputs:
+  github_token:
+    description: GitHub token used to read the pull request and post comments.
+    required: true
+  llm_provider:
+    description: LLM provider to use. Supported values are gemini and mock.
+    required: false
+    default: gemini
+  gemini_api_key:
+    description: Gemini API key used for live AI review. Not required when llm_provider is mock.
+    required: false
+  model:
+    description: Model name used for the review request.
+    required: false
+    default: gemini-2.5-flash
+  max_diff_lines:
+    description: Maximum diff line count before the action skips review.
+    required: false
+    default: "5000"
+outputs:
+  verdict:
+    description: Review verdict returned by PR-Sentinel.
+  comment_url:
+    description: URL of the PR comment created or updated by PR-Sentinel.
+runs:
+  using: node20
+  main: dist/index.js
+branding:
+  icon: shield
+  color: blue
