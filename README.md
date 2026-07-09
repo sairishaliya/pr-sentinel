@@ -156,4 +156,6 @@ PR-Sentinel is designed to fail clearly:
 
 ## Screenshot
 
-Add a screenshot of PR-Sentinel commenting on a real pull request here.
+Example PR-Sentinel review comment:
+
+![PR-Sentinel review comment preview](docs/assets/pr-sentinel-review.svg)
