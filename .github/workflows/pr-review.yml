@@ -23,4 +23,5 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           llm_provider: mock
+          model: mock-reviewer-v1
           max_diff_lines: "5000"
